@@ -6,12 +6,13 @@
 
 // vfastqueue is a CC0 atomic queue implementation that I wrote.
 // it is composed of a linked list with lockless atomic insert/read ops.
-// at least I think they're lockless on x86, not sure about other architectures.
+// they're lockless on x86 & on all other ISAs that support atomic_exchange, atomic_compare_exchange_strong, atomic_fetch_add, atomic_load, atomic_store natively.
 
 // this library offers:
 //    fast atomic insertion & deletion, both happening contemporarily.
 //    only two ops: push & pop (no read w/o modifying).
-//    vfastqueue_objT must be kept in a single thread; two threads cannot call vfastqueue_obj_destroy contemporarily.
+// limitations:
+//    two threads cannot call vfastqueue_obj_destroy on the same vfastqueue_objT contemporarily.
 // usage:
 //    like stb, include vfastqueue in any file of your choosing.
 //    '#define VFASTQUEUE_IMPLEMENTATION' in the actual file you want the implementation to reside in, before including vfastqueue.h.
