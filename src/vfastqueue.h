@@ -1,7 +1,7 @@
 #ifndef VFASTQUEUE_H_INCLUDED
 #define VFASTQUEUE_H_INCLUDED
 
-// VFASTQUEUE v1.
+// VFASTQUEUE v1.1.
 // WRITTEN BY 0xded.
 
 // vfastqueue is a CC0 atomic queue implementation that I wrote.
@@ -114,14 +114,15 @@ vfastqueue_objT* vfastqueue_pop(vfastqueueT* const restrict queue){
 // amount ctr is incremented by must be 2 so ctr is always odd & it may never be equal to any pointer.
 // 'token' represents some unique value that may never conflict with any other token for the duration of the pop.
 // this algorithm proves that the ABA problem can be solved with solely single-width CAS & atomic_fetch_add.
-  const uintptr_t token = atomic_fetch_add(&queue->ctr, 2) + 2;
+  const uintptr_t token = atomic_fetch_add(&queue->ctr, 2);
   vfastqueue_objT* old = NULL;
 
-  do{
-    old = atomic_load(&queue->head);
-    if(!old) return NULL;       // if there's no head, we return NULL as the queue is empty.
 // weak CAS works for this algorithm, so does strong. regardless of whether weak or strong CAS is used, this is compiled to the same insn on x86.
-  } while(!atomic_compare_exchange_weak(&queue->head, &old, (vfastqueue_objT*)token));
+// if queue->head == old, we replace it with our token.
+// otherwise, the new queue->head is loaded & we retry
+  while(!atomic_compare_exchange_weak(&queue->head, &old, (vfastqueue_objT*)token)){
+    if(!old) return NULL;       // if there's no head, we return NULL as the queue is empty.
+  } 
 
   atomic_store(&queue->head, old->next);
 // swaps tail for NULL if old was the last element in the queue & we removed it,
