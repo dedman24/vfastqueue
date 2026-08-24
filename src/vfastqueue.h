@@ -6,13 +6,12 @@
 
 // vfastqueue is a CC0 atomic queue implementation that I wrote.
 // it is composed of a linked list with lockless atomic insert/read ops.
-// they're lockless on x86 & on all other ISAs that support atomic_exchange, atomic_compare_exchange_strong, atomic_fetch_add, atomic_load, atomic_store natively.
+// at least I think they're lockless on x86, not sure about other architectures.
 
 // this library offers:
 //    fast atomic insertion & deletion, both happening contemporarily.
 //    only two ops: push & pop (no read w/o modifying).
-// limitations:
-//    two threads cannot call vfastqueue_obj_destroy on the same vfastqueue_objT contemporarily.
+//    vfastqueue_objT must be kept in a single thread; two threads cannot call vfastqueue_obj_destroy contemporarily.
 // usage:
 //    like stb, include vfastqueue in any file of your choosing.
 //    '#define VFASTQUEUE_IMPLEMENTATION' in the actual file you want the implementation to reside in, before including vfastqueue.h.
@@ -27,8 +26,6 @@ void vfastqueue_destroy(vfastqueueT* const queue, const bool freequeue);        
 bool vfastqueue_isempty(vfastqueueT* const queue);                                      // checks if queue is emtpy or not.
 void vfastqueue_push(vfastqueueT* const restrict queue, void* const restrict elem);     // pushes element to queue.
 vfastqueue_objT* vfastqueue_pop(vfastqueueT* const restrict queue);                     // pops element from queue.
-
-#define VFASTQUEUE_IMPLEMENTATION
 
 // IMPLEMENTATION.
 # ifdef VFASTQUEUE_IMPLEMENTATION
@@ -115,14 +112,14 @@ vfastqueue_objT* vfastqueue_pop(vfastqueueT* const restrict queue){
 // 'token' represents some unique value that may never conflict with any other token for the duration of the pop.
 // this algorithm proves that the ABA problem can be solved with solely single-width CAS & atomic_fetch_add.
   const uintptr_t token = atomic_fetch_add(&queue->ctr, 2);
-  vfastqueue_objT* old = NULL;
+  vfastqueue_objT* old = atomic_load(&queue->head);
 
 // weak CAS works for this algorithm, so does strong. regardless of whether weak or strong CAS is used, this is compiled to the same insn on x86.
 // if queue->head == old, we replace it with our token.
-// otherwise, the new queue->head is loaded & we retry
-  while(!atomic_compare_exchange_weak(&queue->head, &old, (vfastqueue_objT*)token)){
+// otherwise, the new queue->head is loaded & we retry.
+  while(!atomic_compare_exchange_weak(&queue->head, &old, (vfastqueue_objT*)token));
     if(!old) return NULL;       // if there's no head, we return NULL as the queue is empty.
-  } 
+  }
 
   atomic_store(&queue->head, old->next);
 // swaps tail for NULL if old was the last element in the queue & we removed it,
