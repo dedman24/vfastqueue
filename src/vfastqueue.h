@@ -117,7 +117,7 @@ vfastqueue_objT* vfastqueue_pop(vfastqueueT* const restrict queue){
 // weak CAS works for this algorithm, so does strong. regardless of whether weak or strong CAS is used, this is compiled to the same insn on x86.
 // if queue->head == old, we replace it with our token.
 // otherwise, the new queue->head is loaded & we retry.
-  while(!atomic_compare_exchange_weak(&queue->head, &old, (vfastqueue_objT*)token));
+  while(!atomic_compare_exchange_weak(&queue->head, &old, (vfastqueue_objT*)token)){
     if(!old) return NULL;       // if there's no head, we return NULL as the queue is empty.
   }
 
